@@ -596,7 +596,7 @@ impl InstructionBuilder {
     }
 
     fn add_input(&mut self, utxo: Utxo, redeemer: Option<String>) -> CoreResult<()> {
-        if let (Some(_), Some(data)) = (&utxo.datum_hash, &utxo.datum) {
+        if let (Some(_), Some(data), Some(_)) = (&utxo.datum_hash, &utxo.datum, &redeemer) {
             self.add_data(data)?;
         }
         match &utxo.script_ref {
