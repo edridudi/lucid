@@ -219,10 +219,3 @@ experiments: {
     asyncWebAssembly: true,
   }
 ```
-
-### Contributing
-
-Contributions and PRs are welcome\
-The [contribution instructions](./CONTRIBUTING.md).
-
-Join us on [Discord](https://discord.gg/82MWs63Tdm)!
