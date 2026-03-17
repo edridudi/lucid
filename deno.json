@@ -19,7 +19,7 @@
     ".": "./mod.ts",
     "./blueprint": "./blueprint.ts"
   },
-  "author": "Alessandro Konrad",
+  "author": "Rightstuff Innovations",
   "description": "Lucid is a library designed to simplify creating Cardano transactions and writing off-chain code for Plutus contracts.",
   "repository": "https://github.com/spacebudz/lucid",
   "imports": {
