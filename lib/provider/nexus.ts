@@ -72,11 +72,35 @@ export class Nexus implements Provider {
     return url.toString();
   }
 
+  /** Fetch + parse JSON, throwing the API's error envelope message on any non-2xx. */
+  private async fetchJson<T>(
+    url: string,
+    init: { method?: string; headers?: Record<string, string>; body?: string } =
+      {},
+  ): Promise<T> {
+    const response = await fetch(url, {
+      method: init.method,
+      headers: { ...this.headers(), ...(init.headers ?? {}) },
+      body: init.body,
+    });
+    if (!response.ok) {
+      let message = `Nexus request failed with status ${response.status}`;
+      try {
+        const body = await response.json();
+        if (typeof body?.message === "string") message = body.message;
+        else if (typeof body?.error === "string") message = body.error;
+      } catch {
+        // Non-JSON error body: keep the status-based message.
+      }
+      throw new Error(message);
+    }
+    return await response.json() as T;
+  }
+
   async getProtocolParameters(): Promise<RelevantProtocolParameters> {
-    const result: NexusProtocolParameters = await fetch(
+    const result = await this.fetchJson<NexusProtocolParameters>(
       this.endpoint("/api/epoch/latest/parameters"),
-      { headers: this.headers() },
-    ).then((res) => res.json());
+    );
 
     const costModels: Record<string, number[]> = {};
     for (const [key, model] of Object.entries(result.costModels ?? {})) {
@@ -108,9 +132,7 @@ export class Nexus implements Provider {
   ): Promise<Utxo[]> {
     const utxos: Utxo[] = [];
     for (let page = 1;; page++) {
-      const batch: NexusAddressUtxo[] = await fetch(pathFor(page), {
-        headers: this.headers(),
-      }).then((res) => res.json());
+      const batch = await this.fetchJson<NexusAddressUtxo[]>(pathFor(page));
       if (!Array.isArray(batch) || batch.length === 0) break;
       for (const dto of batch) utxos.push(addressUtxoToUtxo(dto));
       if (batch.length < PAGE_SIZE) break;
@@ -147,14 +169,13 @@ export class Nexus implements Provider {
   }
 
   async getUtxoByUnit(unit: string): Promise<Utxo> {
-    const located: NexusAddressUtxo[] = await fetch(
+    const located = await this.fetchJson<NexusAddressUtxo[]>(
       this.endpoint(`/api/assets/${encodeURIComponent(unit)}/utxos`, {
         page: 1,
         pageSize: PAGE_SIZE,
       }),
-      { headers: this.headers() },
-    ).then((res) => res.json());
-    const unspent = (located ?? []).filter((dto) => dto.spent !== true);
+    );
+    const unspent = located.filter((dto) => dto.spent !== true);
     if (unspent.length === 0) throw new Error("Unit not found.");
     if (unspent.length > 1) {
       throw new Error("Unit needs to be an NFT or only held by one address.");
@@ -173,15 +194,15 @@ export class Nexus implements Provider {
       const chunk = outRefs.slice(i, i + OUT_REF_BATCH).map((
         { txHash, outputIndex },
       ) => ({ txHash, outputIndex }));
-      const dtos: NexusOutRefUtxo[] = await fetch(
+      const dtos = await this.fetchJson<NexusOutRefUtxo[]>(
         this.endpoint("/api/transactions/utxos"),
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...this.headers() },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(chunk),
         },
-      ).then((res) => res.json());
-      for (const dto of dtos ?? []) utxos.push(outRefUtxoToUtxo(dto));
+      );
+      for (const dto of dtos) utxos.push(outRefUtxoToUtxo(dto));
     }
     return utxos.filter((utxo) =>
       outRefs.some((outRef) =>
